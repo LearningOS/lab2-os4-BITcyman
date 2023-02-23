@@ -6,7 +6,7 @@ mod frame_allocator;
 
 pub use heap_allocator::heap_test;
 pub use address::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum, VPNRange};
-pub use page_table::PageTableEntry;
+pub use page_table::{PageTable, PageTableEntry, PTEFlags};
 pub use frame_allocator::{FrameTracker, frame_alloc };
 
 
