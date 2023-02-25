@@ -1,17 +1,3 @@
-//! Trap handling functionality
-//!
-//! For rCore, we have a single trap entry point, namely `__alltraps`. At
-//! initialization in [`init()`], we set the `stvec` CSR to point to it.
-//!
-//! All traps go through `__alltraps`, which is defined in `trap.S`. The
-//! assembly language code does just enough work restore the kernel space
-//! context, ensuring that Rust code safely runs, and transfers control to
-//! [`trap_handler()`].
-//!
-//! It then calls different functionality based on what exactly the exception
-//! was. For example, timer interrupts trigger task preemption, and syscalls go
-//! to [`syscall()`].
-
 mod context;
 
 use crate::syscall::syscall;
@@ -35,6 +21,25 @@ pub fn init() {
     }
 }
 
+fn set_kernel_trap_entry() {
+    unsafe {
+        stvec::write(trap_from_kernel as usize, TrapMode::Direct);
+    }
+}
+
+fn set_user_trap_enrty() {
+    unsafe {
+        stvec::write(TRAMPOLINE as usize, TrapMode::Direct);
+    }
+}
+
+#[no_mangle]
+pub fn trap_from_kernel() -> ! {
+    panic!("a trap from kernel!");
+}
+
+
+
 /// timer interrupt enabled
 pub fn enable_timer_interrupt() {
     unsafe {
@@ -43,8 +48,33 @@ pub fn enable_timer_interrupt() {
 }
 
 #[no_mangle]
-/// handle an interrupt, exception, or system call from user space
-pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
+pub fn trap_return() -> ! {
+    set_user_trap_enrty();
+    let trap_cx_ptr = TRAP_CONTEXT;
+    let user_satp = current_user_token();
+    extern "C" {
+        fn __alltraps();
+        fn __restore();
+    }
+    let restore_va = __restore as usize - __alltraps as usize + TRAMPOLINE;
+    unsafe {
+        asm!(
+            "fence.i",
+            "jr {restore_va}",
+            restore_va = in(reg) restore_va,
+            in("a0") trap_cx_ptr,
+            in("a1") user_satp,
+            options(noreturn)
+        );
+    }
+    panic("Unreachable in back_to_user!");
+}
+
+
+#[no_mangle]
+pub fn trap_handler() -> !{
+    set_kernel_trap_entry();
+    let cx = current_task_cx();
     let scause = scause::read(); // get trap cause
     let stval = stval::read(); // get extra value
     match scause.cause() {
@@ -72,7 +102,7 @@ pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
             );
         }
     }
-    cx
+    trap_return();
 }
 
 pub use context::TrapContext;

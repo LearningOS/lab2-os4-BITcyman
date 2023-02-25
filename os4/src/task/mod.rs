@@ -1,14 +1,3 @@
-//! Task management implementation
-//!
-//! Everything about task management, like starting and switching tasks is
-//! implemented here.
-//!
-//! A single global instance of [`TaskManager`] called `TASK_MANAGER` controls
-//! all the tasks in the operating system.
-//!
-//! Be careful when you see [`__switch`]. Control flow around this function
-//! might not be what you expect.
-
 mod context;
 mod switch;
 #[allow(clippy::module_inception)]
@@ -18,46 +7,35 @@ use crate::config::{MAX_APP_NUM, MAX_SYSCALL_NUM};
 use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
 use lazy_static::*;
+use alloc::vec::Vec;
 pub use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
 
 pub use context::TaskContext;
 
-/// The task manager, where all the tasks are managed.
-///
-/// Functions implemented on `TaskManager` deals with all task state transitions
-/// and task context switching. For convenience, you can find wrappers around it
-/// in the module level.
-///
-/// Most of `TaskManager` are hidden behind the field `inner`, to defer
-/// borrowing checks to runtime. You can see examples on how to use `inner` in
-/// existing functions on `TaskManager`.
 pub struct TaskManager {
-    /// total number of tasks
     num_app: usize,
-    /// use inner value to get mutable access
     inner: UPSafeCell<TaskManagerInner>,
 }
 
-/// The task manager inner in 'UPSafeCell'
+
 struct TaskManagerInner {
-    /// task list
-    tasks: [TaskControlBlock; MAX_APP_NUM],
-    /// id of current `Running` task
+    tasks: Vec<TaskControlBlock>,
     current_task: usize,
 }
 
 lazy_static! {
-    /// a `TaskManager` instance through lazy_static!
+    
     pub static ref TASK_MANAGER: TaskManager = {
+        println!("init TASK_MANAGER");
         let num_app = get_num_app();
-        let mut tasks = [TaskControlBlock {
-            task_cx: TaskContext::zero_init(),
-            task_status: TaskStatus::UnInit,
-        }; MAX_APP_NUM];
-        for (i, t) in tasks.iter_mut().enumerate().take(num_app) {
-            t.task_cx = TaskContext::goto_restore(init_app_cx(i));
-            t.task_status = TaskStatus::Ready;
+        println!("num_app = {}", num_app);
+        let mut tasks : Vec<TaskControlBlock> = Vec::new();
+        for i in 0..num_app {
+            task.push(TaskControlBlock::new(
+                get_app_data(i),
+                i,
+            ));
         }
         TaskManager {
             num_app,
@@ -136,41 +114,53 @@ impl TaskManager {
         }
     }
 
-    // LAB1: Try to implement your function to update or get task info!
+    fn get_current_token(&self) -> usize {
+        let inner = self.inner.borrow();
+        let current = inner.current_task;
+        inner.tasks[current].get_user_token()
+    }
+
+    fn get current_task_cx(&self) -> &mut TrapContext {
+        let inner = self.inner.borrow();
+        let current = inner.current_task;
+        inner.tasks[current].get_trap_cx()
+    }
+
+    
 }
 
-/// Run the first task in task list.
+
+
 pub fn run_first_task() {
     TASK_MANAGER.run_first_task();
 }
 
-/// Switch current `Running` task to the task we have found,
-/// or there is no `Ready` task and we can exit with all applications completed
 fn run_next_task() {
     TASK_MANAGER.run_next_task();
 }
 
-/// Change the status of current `Running` task into `Ready`.
 fn mark_current_suspended() {
     TASK_MANAGER.mark_current_suspended();
 }
 
-/// Change the status of current `Running` task into `Exited`.
 fn mark_current_exited() {
     TASK_MANAGER.mark_current_exited();
 }
 
-/// Suspend the current 'Running' task and run the next task in task list.
 pub fn suspend_current_and_run_next() {
     mark_current_suspended();
     run_next_task();
 }
 
-/// Exit the current 'Running' task and run the next task in task list.
 pub fn exit_current_and_run_next() {
     mark_current_exited();
     run_next_task();
 }
 
-// LAB1: Public functions implemented here provide interfaces.
-// You may use TASK_MANAGER member functions to handle requests.
+pub fn current_user_token() -> usize {
+    TASK_MANAGER.get_current_token()
+}
+
+pub fn current_trap_cx -> &'static mut TrapContext {
+    TASK_MANAGER.get_current_trap_cx()
+}

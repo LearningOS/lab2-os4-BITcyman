@@ -119,6 +119,9 @@ impl PageTable{
         *pte = PageTableEntry::empty();
     }
 
+    pub fn token(&self) -> usize {
+        8usize << 60 | self.root_ppn.0 
+    }
 
     pub fn from_token(satp: usize) -> Self {
         Self {
