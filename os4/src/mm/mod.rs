@@ -18,5 +18,5 @@ pub fn init(){
     frame_allocator::init_frame_allocator();
     // frame_allocator::frame_allocator_test();
     KERNEL_SPACE.exclusive_access().activate();
-    remap_test();
+    // remap_test();
 }

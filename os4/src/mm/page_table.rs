@@ -2,7 +2,7 @@
 use bitflags::*;
 use alloc::vec;
 use alloc::vec::Vec;
-use super::{VirtPageNum, PhysPageNum, VirtAddr,FrameTracker, frame_alloc};
+use super::{VirtPageNum, PhysPageNum, VirtAddr,FrameTracker, frame_alloc, StepByOne};
 
 
 
@@ -157,7 +157,7 @@ pub fn translated_byte_buffer(
         vpn.step();
         let mut end_va: VirtAddr = vpn.into();
         end_va = end_va.min(VirtAddr::from(end));
-        v.push(&ppn.get_pte_array()[start_va.page_offset()..end_va.page_offset()]);
+        v.push(&ppn.get_bytes_array()[start_va.page_offset()..end_va.page_offset()]);
         start = end_va.into();
     }
     v

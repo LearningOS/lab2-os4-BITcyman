@@ -102,16 +102,19 @@ pub fn init_frame_allocator() {
 }
 
 pub fn frame_alloc() -> Option<FrameTracker> {
+    // println!("1");
     FRAME_ALLOCATOR
         .exclusive_access()
         .alloc()
         .map(|ppn| FrameTracker::new(ppn))
+    
 }
 
 fn frame_dealloc(ppn: PhysPageNum) {
     FRAME_ALLOCATOR
         .exclusive_access()
         .dealloc(ppn);
+    // println!("0");
 }
 
 #[allow(unused)]

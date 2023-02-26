@@ -75,7 +75,7 @@ impl MemorySet {
             areas: Vec::new(),
         }
     }
-    fn push(&self, mut map_area: MapArea, data: Option<&[u8]>) {
+    fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
         map_area.map(&mut self.page_table);
         if let Some(data) = data {
             map_area.copy_data(&mut self.page_table, data);
@@ -96,7 +96,7 @@ impl MemorySet {
     }
 
     pub fn new_kernel() -> Self {
-        let mut memory_set = Self.new_bare();
+        let mut memory_set = Self::new_bare();
         memory_set.map_trampoline();
         println!(".text [{:#x}, {:#x})", stext as usize, etext as usize);
         println!(".rodata [{:#x}, {:#x})", srodata as usize, erodata as usize);
@@ -207,9 +207,17 @@ impl MemorySet {
     pub fn map_trampoline(&mut self) {
         self.page_table.map(
             VirtAddr::from(TRAMPOLINE).into(),
-            PhysAddr::from(strampoline as usize).into,
+            PhysAddr::from(strampoline as usize).into(),
             PTEFlags::R | PTEFlags::X,
         );
+    }
+
+    pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
+        self.page_table.translate(vpn)
+    }
+
+    pub fn token(&self) -> usize {
+        self.page_table.token()
     }
 }
 
@@ -239,7 +247,7 @@ impl MapArea {
         }
     }
 
-    pub fn copy_data(&mut self, page_table: &mut PageTable, data:[&u8]) {
+    pub fn copy_data(&mut self, page_table: &mut PageTable, data:&[u8]) {
         assert_eq!(self.map_type, MapType::Framed);
         let mut start: usize = 0;
         let mut current_vpn = self.vpn_range.get_start();
@@ -289,7 +297,7 @@ impl MapArea {
 }
 
 pub fn remap_test() {
-    let mut kernel_space = KERNEL_SPACE.lock();
+    let mut kernel_space = KERNEL_SPACE.exclusive_access();
     let mid_text: VirtAddr = ((stext as usize + etext as usize) / 2).into();
     let mid_rodata: VirtAddr = ((srodata as usize + erodata as usize) / 2).into();
     let mid_data: VirtAddr = ((sdata as usize + edata as usize) / 2).into();
@@ -302,7 +310,7 @@ pub fn remap_test() {
         false,
     );
     assert_eq!(
-        kernel_space.Page_table.translate(mid_data.floor()).unwrap().executable(),
+        kernel_space.page_table.translate(mid_data.floor()).unwrap().executable(),
         false,
     );
     println!("remap_test passed!");
