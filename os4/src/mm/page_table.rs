@@ -2,7 +2,7 @@
 use bitflags::*;
 use alloc::vec;
 use alloc::vec::Vec;
-use super::{VirtPageNum, PhysPageNum, FrameTracker, frame_alloc};
+use super::{VirtPageNum, PhysPageNum, VirtAddr,FrameTracker, frame_alloc};
 
 
 
@@ -134,4 +134,31 @@ impl PageTable{
         self.find_pte(vpn)
             .map(|pte| {pte.clone()})
     }
+
+}
+
+
+pub fn translated_byte_buffer(
+    token: usize,
+    ptr: *const u8,
+    len: usize
+) -> Vec<& 'static [u8]> {
+    let page_table = PageTable::from_token(token);
+    let mut start = ptr as usize;
+    let end = start + len;
+    let mut v = Vec::new();
+    while start < end {
+        let start_va = VirtAddr::from(start);
+        let mut vpn = start_va.floor();
+        let ppn = page_table
+            .translate(vpn)
+            .unwrap()
+            .ppn();
+        vpn.step();
+        let mut end_va: VirtAddr = vpn.into();
+        end_va = end_va.min(VirtAddr::from(end));
+        v.push(&ppn.get_pte_array()[start_va.page_offset()..end_va.page_offset()]);
+        start = end_va.into();
+    }
+    v
 }

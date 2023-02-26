@@ -1,10 +1,11 @@
 //! Types related to task management
 
 use super::TaskContext;
-use mm::{MapPermission, MemorySet, PhysPageNum, KERNEL_SPACE}
-use config::{kernel_stack_position, TRAP_CONTEXT};
+use crate::mm::{MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
+use crate::config::{kernel_stack_position, TRAP_CONTEXT};
+use crate::trap::{trap_handler, TrapContext};
 
-#[derive(Copy, Clone)]
+
 /// task control block structure
 pub struct TaskControlBlock {
     pub task_status: TaskStatus,
@@ -31,7 +32,7 @@ impl TaskControlBlock {
             .unwrap()
             .ppn();
         let task_status = TaskStatus::Ready;
-        let (kernel_stack_bottom, kernel_stack_top) = kernel_stack_position(add_id);
+        let (kernel_stack_bottom, kernel_stack_top) = kernel_stack_position(app_id);
         KERNEL_SPACE
             .exclusive_access()
             .insert_frame_area(

@@ -3,14 +3,17 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
-use crate::config::{MAX_APP_NUM, MAX_SYSCALL_NUM};
-use crate::loader::{get_num_app, init_app_cx};
+use crate::config::{MAX_SYSCALL_NUM};
+use crate::loader::{};
 use crate::sync::UPSafeCell;
+use crate::trap::TrapContext;
+use core::arch::asm;
 use lazy_static::*;
 use alloc::vec::Vec;
+use crate::loader::{get_num_app, get_app_data};
+
 pub use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
-
 pub use context::TaskContext;
 
 pub struct TaskManager {
@@ -32,7 +35,7 @@ lazy_static! {
         println!("num_app = {}", num_app);
         let mut tasks : Vec<TaskControlBlock> = Vec::new();
         for i in 0..num_app {
-            task.push(TaskControlBlock::new(
+            tasks.push(TaskControlBlock::new(
                 get_app_data(i),
                 i,
             ));
@@ -120,7 +123,7 @@ impl TaskManager {
         inner.tasks[current].get_user_token()
     }
 
-    fn get current_task_cx(&self) -> &mut TrapContext {
+    fn get_current_task_cx(&self) -> &mut TrapContext {
         let inner = self.inner.borrow();
         let current = inner.current_task;
         inner.tasks[current].get_trap_cx()
@@ -161,6 +164,6 @@ pub fn current_user_token() -> usize {
     TASK_MANAGER.get_current_token()
 }
 
-pub fn current_trap_cx -> &'static mut TrapContext {
+pub fn current_trap_cx() -> &'static mut TrapContext {
     TASK_MANAGER.get_current_trap_cx()
 }

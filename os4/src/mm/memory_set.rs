@@ -1,22 +1,23 @@
 use super::{PTEFlags, PageTable, PageTableEntry};
-use super::{VirtPageNum, FrameTracker};
 use super::{StepByOne, VPNRange};
+use super::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum};
+use super::{frame_alloc, FrameTracker};
 use crate::config::{MEMORY_END, PAGE_SIZE, TRAMPOLINE, TRAP_CONTEXT, USER_STACK_SIZE};
+use crate::sync::UPSafeCell;
 use alloc::collections::BTreeMap;
+use core::arch::asm;
 use spin::Mutex;
 use bitflags::*;
 use lazy_static::*;
 use alloc::sync::Arc;
+use alloc::vec::Vec;
+use riscv::register::satp;
 
-// use super::{frame_alloc, FrameTracker};
 
-// use super::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum};
+
 
 // use alloc::collections::BTreeMap;
 
-// use alloc::vec::Vec;
-
-// use riscv::register::satp;
 
 
 bitflags! {
@@ -75,7 +76,7 @@ impl MemorySet {
         }
     }
     fn push(&self, mut map_area: MapArea, data: Option<&[u8]>) {
-        map.area.map(&mut self.page_table);
+        map_area.map(&mut self.page_table);
         if let Some(data) = data {
             map_area.copy_data(&mut self.page_table, data);
         }
@@ -84,7 +85,7 @@ impl MemorySet {
 
     pub fn insert_frame_area(
         &mut self,
-        start_va: VirtAddr, end_ve: VirtAddr, permission: MapPermission
+        start_va: VirtAddr, end_va: VirtAddr, permission: MapPermission
     ) {
         self.push(MapArea::new(
             start_va,
@@ -199,7 +200,7 @@ impl MemorySet {
         let satp = self.page_table.token();
         unsafe {
             satp::write(satp);
-            asm!("sfence.vma" :::: "volatile");
+            asm!("sfence.vma");
         }
     }
 
@@ -215,7 +216,7 @@ impl MemorySet {
 
 impl MapArea {
     pub fn new(start_va: VirtAddr, end_va: VirtAddr, 
-        map_type: MapType, map_perm: MapPermisson) -> Self {
+        map_type: MapType, map_perm: MapPermission) -> Self {
             let start_vpn: VirtPageNum = start_va.floor();
             let end_vpn: VirtPageNum = end_va.ceil();
             Self {
@@ -289,7 +290,7 @@ impl MapArea {
 
 pub fn remap_test() {
     let mut kernel_space = KERNEL_SPACE.lock();
-    let mid_text: VirtAddr = ((stext as usize etext as usize) / 2).into();
+    let mid_text: VirtAddr = ((stext as usize + etext as usize) / 2).into();
     let mid_rodata: VirtAddr = ((srodata as usize + erodata as usize) / 2).into();
     let mid_data: VirtAddr = ((sdata as usize + edata as usize) / 2).into();
     assert_eq!(
@@ -300,9 +301,9 @@ pub fn remap_test() {
         kernel_space.page_table.translate(mid_rodata.floor()).unwrap().writable(),
         false,
     );
-    assert_eq(
+    assert_eq!(
         kernel_space.Page_table.translate(mid_data.floor()).unwrap().executable(),
         false,
     );
-    println("remap_test passed!");
+    println!("remap_test passed!");
 }

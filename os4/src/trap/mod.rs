@@ -1,8 +1,11 @@
 mod context;
 
+pub use context::TrapContext;
 use crate::syscall::syscall;
-use crate::task::{exit_current_and_run_next, suspend_current_and_run_next};
+use crate::task::{exit_current_and_run_next, suspend_current_and_run_next, current_user_token, current_trap_cx};
 use crate::timer::set_next_trigger;
+use crate::config::{TRAMPOLINE, TRAP_CONTEXT};
+use core::arch::asm;
 use riscv::register::{
     mtvec::TrapMode,
     scause::{self, Exception, Interrupt, Trap},
@@ -67,14 +70,14 @@ pub fn trap_return() -> ! {
             options(noreturn)
         );
     }
-    panic("Unreachable in back_to_user!");
+    panic!("Unreachable in back_to_user!");
 }
 
 
 #[no_mangle]
 pub fn trap_handler() -> !{
     set_kernel_trap_entry();
-    let cx = current_task_cx();
+    let cx = current_trap_cx();
     let scause = scause::read(); // get trap cause
     let stval = stval::read(); // get extra value
     match scause.cause() {
@@ -105,4 +108,3 @@ pub fn trap_handler() -> !{
     trap_return();
 }
 
-pub use context::TrapContext;

@@ -1,6 +1,8 @@
 //! Implementation of [`TrapContext`]
 
 use riscv::register::sstatus::{self, Sstatus, SPP};
+use super::trap_return;
+
 
 #[repr(C)]
 pub struct TrapContext {
@@ -15,12 +17,6 @@ pub struct TrapContext {
 impl TrapContext {
     pub fn set_sp(&mut self, sp: usize) {
         self.x[2] = sp;
-    }
-    pub fn goto_trap_return() -> Self {
-        Self {
-            ra: trap_return as usize,
-            s: [0;12],
-        }
     }
     pub fn app_init_context(
         entry: usize,
