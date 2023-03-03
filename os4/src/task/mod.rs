@@ -7,10 +7,12 @@ use crate::config::{MAX_SYSCALL_NUM};
 use crate::loader::{};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
+use crate::timer::get_time_us;
 use core::arch::asm;
 use lazy_static::*;
 use alloc::vec::Vec;
 use crate::loader::{get_num_app, get_app_data};
+use crate::mm::{VirtAddr, MapPermission};
 
 pub use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
@@ -27,15 +29,21 @@ struct TaskManagerInner {
     current_task: usize,
 }
 
+pub struct TaskInfo {
+    status: TaskStatus,
+    syscall_times: [u32; MAX_SYSCALL_NUM],
+    time: usize,
+}
+
 lazy_static! {
     
     pub static ref TASK_MANAGER: TaskManager = {
         println!("init TASK_MANAGER");
         let num_app = get_num_app();
-        // println!("num_app = {}", num_app);
+        println!("num_app = {}", num_app);
         let mut tasks : Vec<TaskControlBlock> = Vec::new();
         for i in 0..num_app {
-            println!("{}th app's tcb is being created",i);
+            // println!("{}th app's tcb is being created",i);
             tasks.push(TaskControlBlock::new(
                 get_app_data(i),
                 i,
@@ -104,6 +112,9 @@ impl TaskManager {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
             inner.tasks[next].task_status = TaskStatus::Running;
+            if inner.tasks[next].task_start_time==0 {
+                inner.tasks[next].task_start_time = get_time_us();
+            }
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
@@ -130,7 +141,37 @@ impl TaskManager {
         inner.tasks[current].get_trap_cx()
     }
 
+    fn get_current_task_info(&self, ti:*mut TaskInfo) -> usize {
+        let inner = self.inner.exclusive_access();
+        let current_task = inner.current_task;
+        unsafe{
+            *ti = TaskInfo{
+                status: inner.tasks[current_task].task_status,
+                syscall_times: inner.tasks[current_task].task_syscall_times,
+                time: (get_time_us() - inner.tasks[current_task].task_start_time) / 1000,
+            }
+        }
+        0
+    }
+
+    fn increase_task_syscall(&self, syscall_id: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let current_task = inner.current_task;
+        inner.tasks[current_task].task_syscall_times[syscall_id] += 1;
+    }
     
+    fn current_m_map(&self, start: VirtAddr, len: usize, perm: MapPermission) -> isize{
+        let mut inner = self.inner.exclusive_access();
+        let current_task = inner.current_task;
+        inner.tasks[current_task].memory_set.mmap(start, len, perm)
+    }
+
+    fn get_curren_task_note(&self) -> usize {
+        let mut inner = self.inner.exclusive_access();
+        let current_task = inner.current_task;
+        drop(inner);
+        current_task
+    }
 }
 
 
@@ -161,10 +202,26 @@ pub fn exit_current_and_run_next() {
     run_next_task();
 }
 
+pub fn current_task_note() -> usize {
+    TASK_MANAGER.get_curren_task_note()
+}
+
 pub fn current_user_token() -> usize {
     TASK_MANAGER.get_current_token()
 }
 
 pub fn current_trap_cx() -> &'static mut TrapContext {
     TASK_MANAGER.get_current_trap_cx()
+}
+
+pub fn get_task_info(ti: *mut TaskInfo) -> usize {
+    TASK_MANAGER.get_current_task_info(ti)
+}
+
+pub fn increase_task_syscall_times(syscall_id: usize) {
+    TASK_MANAGER.increase_task_syscall(syscall_id);
+}
+
+pub fn current_mmap(start: VirtAddr, len: usize, perm: MapPermission) -> isize {
+    TASK_MANAGER.current_m_map(start, len, perm)
 }

@@ -2,7 +2,7 @@ mod context;
 
 pub use context::TrapContext;
 use crate::syscall::syscall;
-use crate::task::{exit_current_and_run_next, suspend_current_and_run_next, current_user_token, current_trap_cx};
+use crate::task::{exit_current_and_run_next, suspend_current_and_run_next, current_user_token, current_trap_cx, increase_task_syscall_times};
 use crate::timer::set_next_trigger;
 use crate::config::{TRAMPOLINE, TRAP_CONTEXT};
 use core::arch::asm;
@@ -82,10 +82,12 @@ pub fn trap_handler() -> !{
     let stval = stval::read(); // get extra value
     match scause.cause() {
         Trap::Exception(Exception::UserEnvCall) => {
+            increase_task_syscall_times(cx.x[17]);
             cx.sepc += 4;
             cx.x[10] = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]) as usize;
         }
-        Trap::Exception(Exception::StoreFault) | Trap::Exception(Exception::StorePageFault) => {
+        Trap::Exception(Exception::StoreFault) | Trap::Exception(Exception::StorePageFault) | Trap::Exception(Exception::LoadPageFault) 
+        => {
             error!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x}, core dumped.", stval, cx.sepc);
             exit_current_and_run_next();
         }

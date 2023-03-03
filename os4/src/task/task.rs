@@ -2,7 +2,7 @@
 
 use super::TaskContext;
 use crate::mm::{MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
-use crate::config::{kernel_stack_position, TRAP_CONTEXT};
+use crate::config::{kernel_stack_position, TRAP_CONTEXT, MAX_SYSCALL_NUM};
 use crate::trap::{trap_handler, TrapContext};
 
 
@@ -13,6 +13,9 @@ pub struct TaskControlBlock {
     pub memory_set: MemorySet,
     pub trap_cx_ppn: PhysPageNum,
     pub base_size: usize,
+
+    pub task_start_time: usize,
+    pub task_syscall_times: [u32; MAX_SYSCALL_NUM],
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -46,7 +49,11 @@ impl TaskControlBlock {
             memory_set,
             trap_cx_ppn,
             base_size: user_sp,
+
+            task_start_time: 0,
+            task_syscall_times: [0;MAX_SYSCALL_NUM],
         };
+
 
         let trap_cx = task_control_block.get_trap_cx();
         * trap_cx = TrapContext::app_init_context(
@@ -66,4 +73,6 @@ impl TaskControlBlock {
     pub fn get_user_token(&self) -> usize {
         self.memory_set.token()
     }
+
+    
 }

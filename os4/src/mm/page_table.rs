@@ -3,7 +3,7 @@ use bitflags::*;
 use alloc::vec;
 use alloc::vec::Vec;
 use super::{VirtPageNum, PhysPageNum, VirtAddr,FrameTracker, frame_alloc, StepByOne};
-
+use crate::task::current_task_note;
 
 
 bitflags! {

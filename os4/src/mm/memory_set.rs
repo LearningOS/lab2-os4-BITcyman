@@ -219,6 +219,20 @@ impl MemorySet {
     pub fn token(&self) -> usize {
         self.page_table.token()
     }
+
+    pub fn includes(&self, vr: VPNRange) -> bool {
+        self.areas.iter().any(|area| area.includes(vr))
+    }
+
+    pub fn mmap(&mut self, start: VirtAddr, len: usize, perm: MapPermission) -> isize{
+        let end = VirtAddr(start.0 + len);
+        let vr = VPNRange::new(start.floor(), end.ceil());
+        if self.includes(vr) {
+            return -1;
+        }
+        self.push(MapArea::new(start, end, MapType::Framed, perm), None);
+        0
+    }
 }
 
 
@@ -292,6 +306,10 @@ impl MapArea {
             _ => {}
         }
         page_table.unmap(vpn);
+    }
+
+    pub fn includes(&self, vr: VPNRange) -> bool {
+        self.vpn_range.includes(vr)
     }
 
 }
