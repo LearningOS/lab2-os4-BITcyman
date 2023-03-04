@@ -166,6 +166,12 @@ impl TaskManager {
         inner.tasks[current_task].memory_set.mmap(start, len, perm)
     }
 
+    fn current_m_unmap(&self, start: VirtAddr, len: usize) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let current_task = inner.current_task;
+        inner.tasks[current_task].memory_set.munmap(start, len)
+    }
+
     fn get_curren_task_note(&self) -> usize {
         let mut inner = self.inner.exclusive_access();
         let current_task = inner.current_task;
@@ -224,4 +230,8 @@ pub fn increase_task_syscall_times(syscall_id: usize) {
 
 pub fn current_mmap(start: VirtAddr, len: usize, perm: MapPermission) -> isize {
     TASK_MANAGER.current_m_map(start, len, perm)
+}
+
+pub fn current_munmap(start: VirtAddr, len: usize) -> isize {
+    TASK_MANAGER.current_m_unmap(start, len)
 }

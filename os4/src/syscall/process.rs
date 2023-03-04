@@ -1,7 +1,7 @@
 //! Process management syscalls
 
 use crate::config::{MAX_SYSCALL_NUM};
-use crate::task::{exit_current_and_run_next, suspend_current_and_run_next, TaskStatus, current_user_token, TaskInfo, get_task_info, current_mmap};
+use crate::task::{exit_current_and_run_next, suspend_current_and_run_next, TaskStatus, current_user_token, TaskInfo, get_task_info, current_mmap, current_munmap};
 use crate::mm::{MapPermission, PageTable, VirtAddr, PhysAddr};
 use crate::timer::get_time_us;
 
@@ -71,7 +71,12 @@ pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
 }
 
 pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    -1
+    let va = VirtAddr(_start);
+    if !va.is_align() {
+        return -1
+    }
+    current_munmap(va, _len)
+
 }
 
 // YOUR JOB: 引入虚地址后重写 sys_task_info

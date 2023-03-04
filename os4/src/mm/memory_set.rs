@@ -224,7 +224,7 @@ impl MemorySet {
         self.areas.iter().any(|area| area.includes(vr))
     }
 
-    pub fn mmap(&mut self, start: VirtAddr, len: usize, perm: MapPermission) -> isize{
+    pub fn mmap(&mut self, start: VirtAddr, len: usize, perm: MapPermission) -> isize {
         let end = VirtAddr(start.0 + len);
         let vr = VPNRange::new(start.floor(), end.ceil());
         if self.includes(vr) {
@@ -232,6 +232,21 @@ impl MemorySet {
         }
         self.push(MapArea::new(start, end, MapType::Framed, perm), None);
         0
+    }
+
+    pub fn munmap(&mut self, start: VirtAddr, len: usize) -> isize {
+        let end = VirtAddr(start.0 + len);
+        let vr = VPNRange::new(start.floor(), end.ceil());
+        let pos = self.areas.iter().position(|area| area.match_range(vr));
+
+        match pos {
+            Some(idx) => {
+                self.areas[idx].unmap(&mut self.page_table);
+                self.areas.remove(idx);
+                0
+            }
+            None => -1,
+        }
     }
 }
 
@@ -310,6 +325,10 @@ impl MapArea {
 
     pub fn includes(&self, vr: VPNRange) -> bool {
         self.vpn_range.includes(vr)
+    }
+
+    pub fn match_range(&self, vr: VPNRange) -> bool {
+        self.vpn_range.get_start() == vr.get_start() && self.vpn_range.get_end() == vr.get_end()
     }
 
 }
